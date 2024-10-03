@@ -1,6 +1,6 @@
 import eldarcpp
 
-original_query = ""
+original_query = "trump AND donald"
 query_tree = eldarcpp.QueryTree(original_query)
 print("Original query:", query_tree.to_string())
 

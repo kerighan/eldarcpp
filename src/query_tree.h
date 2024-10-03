@@ -274,6 +274,70 @@ private:
             currentPath.pop_back();
         }
     }
+    
+    void collectWordNodePaths(const QueryNode* node, std::vector<int>& currentPath, std::vector<std::vector<int>>& paths) const {
+        if (dynamic_cast<const WordNode*>(node)) {
+            paths.push_back(currentPath);
+        } else if (const auto* binaryNode = dynamic_cast<const BinaryOpNode*>(node)) {
+            currentPath.push_back(0);
+            collectWordNodePaths(binaryNode->getLeft(), currentPath, paths);
+            currentPath.pop_back();
+
+            currentPath.push_back(1);
+            collectWordNodePaths(binaryNode->getRight(), currentPath, paths);
+            currentPath.pop_back();
+        } else if (const auto* notNode = dynamic_cast<const NotNode*>(node)) {
+            currentPath.push_back(0);
+            collectWordNodePaths(notNode->getChild(), currentPath, paths);
+            currentPath.pop_back();
+        }
+    }
+
+    std::unique_ptr<QueryNode> cloneAndReplaceAtPath(const QueryNode* node, const std::vector<int>& path, size_t pathIndex, const std::string& newWord, const std::string& op) const {
+        if (pathIndex == path.size()) {
+            if (const auto* wordNode = dynamic_cast<const WordNode*>(node)) {
+                // Replace the WordNode with a BinaryOpNode
+                auto leftNode = cloneNode(wordNode);
+                auto rightNode = std::make_unique<WordNode>(newWord);
+                if (op == "AND") {
+                    return std::make_unique<AndNode>(std::move(leftNode), std::move(rightNode));
+                } else if (op == "OR") {
+                    return std::make_unique<OrNode>(std::move(leftNode), std::move(rightNode));
+                } else if (op == "AND NOT") {
+                    return std::make_unique<AndNotNode>(std::move(leftNode), std::move(rightNode));
+                } else {
+                    throw std::runtime_error("Invalid operator");
+                }
+            } else {
+                throw std::runtime_error("Expected WordNode at the end of path");
+            }
+        } else {
+            if (const auto* binaryNode = dynamic_cast<const BinaryOpNode*>(node)) {
+                std::unique_ptr<QueryNode> newLeft, newRight;
+                if (path[pathIndex] == 0) {
+                    newLeft = cloneAndReplaceAtPath(binaryNode->getLeft(), path, pathIndex + 1, newWord, op);
+                    newRight = cloneNode(binaryNode->getRight());
+                } else {
+                    newLeft = cloneNode(binaryNode->getLeft());
+                    newRight = cloneAndReplaceAtPath(binaryNode->getRight(), path, pathIndex + 1, newWord, op);
+                }
+                if (dynamic_cast<const AndNode*>(binaryNode)) {
+                    return std::make_unique<AndNode>(std::move(newLeft), std::move(newRight));
+                } else if (dynamic_cast<const OrNode*>(binaryNode)) {
+                    return std::make_unique<OrNode>(std::move(newLeft), std::move(newRight));
+                } else if (dynamic_cast<const AndNotNode*>(binaryNode)) {
+                    return std::make_unique<AndNotNode>(std::move(newLeft), std::move(newRight));
+                } else {
+                    throw std::runtime_error("Unknown binary node type");
+                }
+            } else if (const auto* notNode = dynamic_cast<const NotNode*>(node)) {
+                auto newChild = cloneAndReplaceAtPath(notNode->getChild(), path, pathIndex + 1, newWord, op);
+                return std::make_unique<NotNode>(std::move(newChild));
+            } else {
+                throw std::runtime_error("Unexpected node type in path");
+            }
+        }
+    }
 
 public:
     QueryTree(const std::string& query, bool ignore_case = true) {
@@ -299,17 +363,22 @@ public:
     }
 
     std::vector<QueryTree> generateAllExpansions(const std::string& newWord) const {
-        std::vector<std::tuple<std::unique_ptr<QueryNode>, std::vector<int>, std::string>> expansions;
+        // Collect paths to all WordNodes
+        std::vector<std::vector<int>> wordNodePaths;
         std::vector<int> currentPath;
-        generateExpansionsRecursive(root.get(), newWord, currentPath, expansions);
+        collectWordNodePaths(root.get(), currentPath, wordNodePaths);
 
-        std::vector<QueryTree> result;
-        for (size_t i = 0; i < expansions.size(); ++i) {
-            QueryTree newTree(*this);  // Create a copy of the current tree
-            newTree.root = std::move(std::get<0>(expansions[i]));
-            result.push_back(std::move(newTree));
+        std::vector<QueryTree> expansions;
+        for (const auto& path : wordNodePaths) {
+            for (const auto& op : {"AND", "OR", "AND NOT"}) {
+                // Clone the tree and replace the WordNode at path
+                auto newRoot = cloneAndReplaceAtPath(root.get(), path, 0, newWord, op);
+                QueryTree newTree(*this);
+                newTree.root = std::move(newRoot);
+                expansions.push_back(std::move(newTree));
+            }
         }
-        return result;
+        return expansions;
     }
 
     const QueryNode* getRoot() const { return root.get(); }
