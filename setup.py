@@ -5,7 +5,7 @@ ext_modules = [
     Extension(
         "eldarcpp",
         ["src/bindings.cpp"],
-        include_dirs=[pybind11.get_include()],
+        include_dirs=[pybind11.get_include(), "src"],
         language="c++",
         extra_compile_args=["-std=c++17", "-O3"],
     ),
