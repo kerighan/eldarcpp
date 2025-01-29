@@ -13,7 +13,7 @@ ext_modules = [
 
 setup(
     name="eldarcpp",
-    version="0.0.0",
+    version="0.0.1",
     author="Maixent Chenebaux",
     author_email="max.chbx@gmail.com",
     description="A blazing fast search engine with Python bindings written in C++",
