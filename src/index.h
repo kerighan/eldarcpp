@@ -171,4 +171,21 @@ public:
         }
     }
 
+    // Method to get the state of the object for pickling
+    std::unordered_map<std::string, std::vector<int>> get_state() const {
+        return inverted_index;
+    }
+
+    // Method to set the state of the object from pickling
+    void set_state(const std::unordered_map<std::string, std::vector<int>>& state) {
+        inverted_index = state;
+        current_doc_id = state.size(); // Assuming doc_id is the size of the state
+    }
+
+    // Add serialization support for Python
+    template <typename Archive>
+    void serialize(Archive& ar, const unsigned int version) {
+        ar & inverted_index;
+        ar & current_doc_id;
+    }
 };

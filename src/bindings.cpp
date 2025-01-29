@@ -9,6 +9,11 @@ namespace py = pybind11;
 PYBIND11_MODULE(eldarcpp, m) {
     py::class_<Index>(m, "Index")
         .def(py::init<>())
+        .def(py::init([](const std::unordered_map<std::string, std::vector<int>>& state) {
+            auto idx = std::make_unique<Index>();
+            idx->set_state(state);
+            return idx;
+        }))
         .def("add_document", &Index::add_document)
         .def("get_postings", &Index::get_postings)
         .def("get_document_count", &Index::get_document_count)
@@ -19,7 +24,16 @@ PYBIND11_MODULE(eldarcpp, m) {
         .def("count", py::overload_cast<const std::string&, bool>(&Index::count, py::const_),
              py::arg("query_string"), py::arg("ignore_case") = true)
         .def("save", &Index::save)
-        .def("load", &Index::load);
+        .def("load", &Index::load)
+        .def("get_state", &Index::get_state)
+        .def("set_state", &Index::set_state)
+        .def("__getstate__", [](const Index &idx) {
+            return idx.get_state();
+        })
+        .def("__setstate__", [](Index &idx, const std::unordered_map<std::string, std::vector<int>>& state) {
+            new (&idx) Index();  // Placement new to properly initialize
+            idx.set_state(state);
+        });
 
     py::class_<QueryTree>(m, "QueryTree")
         .def(py::init<const std::string&, bool>(), 
